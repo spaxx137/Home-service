@@ -3,12 +3,14 @@ import { notFound } from "next/navigation";
 
 import { StatusBadge } from "@/components/admin/status-badge";
 import { StatusUpdateForm, TechnicianAssignForm } from "@/components/admin/booking-actions";
+import { TechnicianSuggestions } from "@/components/admin/technician-suggestions";
 import {
   ISSUE_TYPE_LABELS,
   TIME_WINDOW_LABELS,
   formatPhp,
 } from "@/lib/constants";
 import { getBookingDetail } from "@/lib/admin/bookings";
+import { suggestTechnicians } from "@/lib/admin/matching";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function AdminBookingDetailPage({
@@ -28,6 +30,10 @@ export default async function AdminBookingDetailPage({
     .select("id, name, service_zone")
     .eq("active_status", true)
     .order("name");
+
+  const { suggestions, distanceAvailable } = customer
+    ? await suggestTechnicians(booking, customer)
+    : { suggestions: [], distanceAvailable: false };
 
   return (
     <div>
@@ -85,12 +91,23 @@ export default async function AdminBookingDetailPage({
           </div>
         </section>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-5">
+        <section className="rounded-xl border border-slate-200 bg-white p-5 lg:col-span-2">
           <h2 className="font-semibold text-slate-900">Technician Assignment</h2>
           <p className="mt-1 text-sm text-slate-500">
             {technician ? `Currently assigned to ${technician.name}.` : "No technician assigned yet."}
           </p>
+
           <div className="mt-4">
+            <TechnicianSuggestions
+              bookingId={booking.id}
+              currentTechnicianId={booking.technician_id}
+              suggestions={suggestions}
+              distanceAvailable={distanceAvailable}
+            />
+          </div>
+
+          <div className="mt-6 border-t border-slate-100 pt-4">
+            <p className="mb-2 text-xs font-medium text-slate-500">Or assign manually</p>
             <TechnicianAssignForm
               bookingId={booking.id}
               currentTechnicianId={booking.technician_id}

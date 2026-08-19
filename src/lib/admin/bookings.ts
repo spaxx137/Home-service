@@ -1,5 +1,6 @@
 import "server-only";
 
+import { suggestTechnicians } from "@/lib/admin/matching";
 import { createClient } from "@/lib/supabase/server";
 import type { Booking, BookingStatus, Customer, Technician } from "@/types/database";
 
@@ -14,6 +15,7 @@ export interface BookingListItem {
   booking: Booking;
   customer: Pick<Customer, "id" | "name" | "phone"> | null;
   technician: Pick<Technician, "id" | "name"> | null;
+  suggestedTechnicianName: string | null;
 }
 
 export async function listBookings(filters: BookingListFilters): Promise<BookingListItem[]> {
@@ -55,8 +57,8 @@ export async function listBookings(filters: BookingListFilters): Promise<Booking
 
   const [{ data: customers }, { data: technicians }] = await Promise.all([
     customerIds.length
-      ? supabase.from("customers").select("id, name, phone").in("id", customerIds)
-      : Promise.resolve({ data: [] as Pick<Customer, "id" | "name" | "phone">[] }),
+      ? supabase.from("customers").select("*").in("id", customerIds)
+      : Promise.resolve({ data: [] as Customer[] }),
     technicianIds.length
       ? supabase.from("technicians").select("id, name").in("id", technicianIds)
       : Promise.resolve({ data: [] as Pick<Technician, "id" | "name">[] }),
@@ -65,11 +67,24 @@ export async function listBookings(filters: BookingListFilters): Promise<Booking
   const customerById = new Map((customers ?? []).map((c) => [c.id, c]));
   const technicianById = new Map((technicians ?? []).map((t) => [t.id, t]));
 
-  return bookings.map((booking) => ({
-    booking,
-    customer: customerById.get(booking.customer_id) ?? null,
-    technician: booking.technician_id ? (technicianById.get(booking.technician_id) ?? null) : null,
-  }));
+  // Only compute a live suggestion for unassigned "new" bookings — this is
+  // the small daily-volume MVP case (Spec.md §1), so an N-query suggestion
+  // pass per page load is an acceptable trade-off vs. the complexity of
+  // batching it into one query.
+  return Promise.all(
+    bookings.map(async (booking) => {
+      const customer = customerById.get(booking.customer_id) ?? null;
+      const technician = booking.technician_id ? (technicianById.get(booking.technician_id) ?? null) : null;
+
+      let suggestedTechnicianName: string | null = null;
+      if (booking.status === "new" && !booking.technician_id && customer) {
+        const { suggestions } = await suggestTechnicians(booking, customer);
+        suggestedTechnicianName = suggestions[0]?.name ?? null;
+      }
+
+      return { booking, customer, technician, suggestedTechnicianName };
+    }),
+  );
 }
 
 export interface BookingDetail {

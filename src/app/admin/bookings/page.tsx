@@ -115,7 +115,7 @@ export default async function AdminBookingsPage({
                 </td>
               </tr>
             )}
-            {items.map(({ booking, customer, technician }) => (
+            {items.map(({ booking, customer, technician, suggestedTechnicianName }) => (
               <tr key={booking.id} className="hover:bg-slate-50">
                 <td className="px-4 py-3">
                   <Link
@@ -134,7 +134,18 @@ export default async function AdminBookingsPage({
                   {booking.preferred_date}
                   <div className="text-xs text-slate-500">{booking.preferred_time}</div>
                 </td>
-                <td className="px-4 py-3 text-slate-700">{technician?.name ?? "Unassigned"}</td>
+                <td className="px-4 py-3 text-slate-700">
+                  {technician?.name ?? (
+                    <span className="text-slate-400">
+                      Unassigned
+                      {suggestedTechnicianName && (
+                        <span className="ml-1 text-blue-600">
+                          · Suggest: {suggestedTechnicianName}
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </td>
                 <td className="px-4 py-3">
                   <StatusBadge status={booking.status} />
                 </td>
