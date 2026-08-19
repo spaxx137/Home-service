@@ -24,6 +24,9 @@ export function AdminShell({
               <Link href="/admin/bookings" className="hover:text-slate-900">
                 Bookings
               </Link>
+              <Link href="/admin/customers" className="hover:text-slate-900">
+                Customers
+              </Link>
             </nav>
           </div>
           <div className="flex items-center gap-3">
