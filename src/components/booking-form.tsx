@@ -91,6 +91,15 @@ export function BookingForm() {
         return;
       }
 
+      if (payload.checkoutUrl) {
+        // Hand off to PayMongo's hosted GCash/Maya checkout; it redirects
+        // back to /book/payment-result when done.
+        window.location.href = payload.checkoutUrl;
+        return;
+      }
+
+      // No checkout URL means PayMongo isn't configured yet — fall back to
+      // an in-page confirmation rather than blocking the booking.
       setConfirmation(payload);
     } catch {
       setSubmitError("Couldn't reach the server. Check your connection and try again.");

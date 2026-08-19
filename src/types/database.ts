@@ -74,7 +74,8 @@ export type Booking = {
 export type Payment = {
   id: string;
   booking_id: string;
-  provider: PaymentProvider;
+  provider: PaymentProvider | null;
+  checkout_session_id: string | null;
   provider_reference: string | null;
   amount: number;
   status: PaymentStatus;
@@ -134,7 +135,14 @@ export type Database = {
       };
       payments: {
         Row: Payment;
-        Insert: Omit<Payment, "id" | "created_at"> & { id?: string; created_at?: string };
+        Insert: Omit<Payment, "id" | "created_at" | "provider" | "checkout_session_id" | "provider_reference" | "paid_at"> & {
+          id?: string;
+          created_at?: string;
+          provider?: PaymentProvider | null;
+          checkout_session_id?: string | null;
+          provider_reference?: string | null;
+          paid_at?: string | null;
+        };
         Update: Partial<Payment>;
         Relationships: [];
       };

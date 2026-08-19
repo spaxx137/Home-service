@@ -143,7 +143,12 @@ create trigger bookings_set_updated_at
 create table payments (
   id uuid primary key default gen_random_uuid(),
   booking_id uuid not null references bookings (id) on delete cascade,
-  provider payment_provider not null,
+  -- Null until the PayMongo webhook reports which method the customer
+  -- actually chose on the hosted checkout page (gcash vs. maya).
+  provider payment_provider,
+  -- PayMongo checkout session id, known immediately at creation — used to
+  -- match the webhook event back to this row.
+  checkout_session_id text,
   provider_reference text,
   amount numeric(10, 2) not null,
   status payment_status not null default 'pending',
@@ -152,6 +157,8 @@ create table payments (
 );
 
 create index payments_booking_id_idx on payments (booking_id);
+create unique index payments_checkout_session_id_idx on payments (checkout_session_id)
+  where checkout_session_id is not null;
 create unique index payments_provider_reference_idx on payments (provider_reference)
   where provider_reference is not null;
 

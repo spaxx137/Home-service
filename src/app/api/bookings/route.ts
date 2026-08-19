@@ -1,7 +1,8 @@
 import { NextResponse, after } from "next/server";
 import { z } from "zod";
 
-import { ISSUE_TYPE_ESTIMATES, generateReferenceNumber } from "@/lib/constants";
+import { ISSUE_TYPE_ESTIMATES, ISSUE_TYPE_LABELS, generateReferenceNumber } from "@/lib/constants";
+import { createCheckoutSession } from "@/lib/paymongo";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   ALLOWED_PHOTO_TYPES,
@@ -205,7 +206,29 @@ export async function POST(request: Request) {
     ),
   );
 
-  // TODO(milestone 8): kick off the PayMongo GCash/Maya checkout.
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? new URL(request.url).origin;
+  const checkoutSession = await createCheckoutSession({
+    referenceNumber: booking.reference_number,
+    description: `${ISSUE_TYPE_LABELS[values.issueType]} — ${values.deviceInfo}`,
+    amount,
+    customerName: values.fullName,
+    customerEmail: values.email,
+    customerPhone: mobileNumber,
+    successUrl: `${siteUrl}/book/payment-result?ref=${booking.reference_number}&status=success`,
+    cancelUrl: `${siteUrl}/book/payment-result?ref=${booking.reference_number}&status=cancelled`,
+  });
+
+  if (checkoutSession) {
+    const { error: paymentInsertError } = await supabase.from("payments").insert({
+      booking_id: booking.id,
+      checkout_session_id: checkoutSession.sessionId,
+      amount,
+      status: "pending",
+    });
+    if (paymentInsertError) {
+      console.error("[api/bookings] payment row insert failed:", paymentInsertError);
+    }
+  }
 
   return NextResponse.json({
     referenceNumber: booking.reference_number,
@@ -213,5 +236,6 @@ export async function POST(request: Request) {
     issueType: values.issueType,
     preferredDate: values.preferredDate,
     preferredTime: values.preferredTime,
+    checkoutUrl: checkoutSession?.checkoutUrl ?? null,
   });
 }
