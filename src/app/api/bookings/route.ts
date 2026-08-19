@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { z } from "zod";
 
 import { ISSUE_TYPE_ESTIMATES, generateReferenceNumber } from "@/lib/constants";
@@ -9,6 +9,7 @@ import {
   bookingFormSchema,
   normalizePhMobile,
 } from "@/lib/validation/booking";
+import { formatNewBookingMessage, sendViberGroupMessage } from "@/lib/viber";
 
 const BOOKING_PHOTOS_BUCKET = "booking-photos";
 const MAX_REFERENCE_ATTEMPTS = 5;
@@ -184,7 +185,26 @@ export async function POST(request: Request) {
     return dbErrorResponse("booking insert failed", lastError);
   }
 
-  // TODO(milestone 7): post the new booking to the shop's Viber group.
+  // Runs after the response is sent (via next/server's `after`) so a slow
+  // or failing Viber call can't delay or fail the booking response itself.
+  // Errors are logged inside sendViberGroupMessage.
+  after(() =>
+    sendViberGroupMessage(
+      formatNewBookingMessage({
+        referenceNumber: booking.reference_number,
+        customerName: values.fullName,
+        customerPhone: mobileNumber,
+        customerAddress: values.address,
+        deviceInfo: values.deviceInfo,
+        issueType: values.issueType,
+        issueDetails: values.issueDetails,
+        preferredDate: values.preferredDate,
+        preferredTime: values.preferredTime,
+        amount,
+      }),
+    ),
+  );
+
   // TODO(milestone 8): kick off the PayMongo GCash/Maya checkout.
 
   return NextResponse.json({
