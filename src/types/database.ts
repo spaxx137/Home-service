@@ -21,14 +21,14 @@ export type PaymentProvider = "paymongo_gcash" | "paymongo_maya";
 
 export type AppRole = "admin" | "technician";
 
-export interface Profile {
+export type Profile = {
   id: string;
   role: AppRole;
   full_name: string;
   created_at: string;
 }
 
-export interface Customer {
+export type Customer = {
   id: string;
   name: string;
   phone: string;
@@ -39,7 +39,7 @@ export interface Customer {
   created_at: string;
 }
 
-export interface Technician {
+export type Technician = {
   id: string;
   profile_id: string | null;
   name: string;
@@ -52,7 +52,7 @@ export interface Technician {
   created_at: string;
 }
 
-export interface Booking {
+export type Booking = {
   id: string;
   reference_number: string;
   customer_id: string;
@@ -71,7 +71,7 @@ export interface Booking {
   updated_at: string;
 }
 
-export interface Payment {
+export type Payment = {
   id: string;
   booking_id: string;
   provider: PaymentProvider;
@@ -82,7 +82,7 @@ export interface Payment {
   created_at: string;
 }
 
-export interface FollowUpNote {
+export type FollowUpNote = {
   id: string;
   customer_id: string;
   note: string;
@@ -90,19 +90,37 @@ export interface FollowUpNote {
   created_at: string;
 }
 
-export interface Database {
+export type Database = {
   public: {
     Tables: {
-      profiles: { Row: Profile; Insert: Partial<Profile>; Update: Partial<Profile> };
+      profiles: {
+        Row: Profile;
+        Insert: Partial<Profile>;
+        Update: Partial<Profile>;
+        Relationships: [];
+      };
       customers: {
         Row: Customer;
-        Insert: Omit<Customer, "id" | "created_at"> & { id?: string; created_at?: string };
+        Insert: Omit<Customer, "id" | "created_at" | "address_lat" | "address_lng"> & {
+          id?: string;
+          created_at?: string;
+          address_lat?: number | null;
+          address_lng?: number | null;
+        };
         Update: Partial<Customer>;
+        Relationships: [];
       };
       technicians: {
         Row: Technician;
-        Insert: Omit<Technician, "id" | "created_at"> & { id?: string; created_at?: string };
+        Insert: Omit<Technician, "id" | "created_at" | "lat" | "lng" | "active_status"> & {
+          id?: string;
+          created_at?: string;
+          lat?: number | null;
+          lng?: number | null;
+          active_status?: boolean;
+        };
         Update: Partial<Technician>;
+        Relationships: [];
       };
       bookings: {
         Row: Booking;
@@ -112,17 +130,22 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Booking>;
+        Relationships: [];
       };
       payments: {
         Row: Payment;
         Insert: Omit<Payment, "id" | "created_at"> & { id?: string; created_at?: string };
         Update: Partial<Payment>;
+        Relationships: [];
       };
       follow_up_notes: {
         Row: FollowUpNote;
         Insert: Omit<FollowUpNote, "id" | "created_at"> & { id?: string; created_at?: string };
         Update: Partial<FollowUpNote>;
+        Relationships: [];
       };
     };
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
   };
-}
+};
