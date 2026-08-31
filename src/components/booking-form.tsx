@@ -225,14 +225,14 @@ export function BookingForm() {
             className={inputClass}
             placeholder="you@example.com"
           />
-          {otpStep !== "verified" && (
+          {otpStep === "idle" && (
             <button
               type="button"
               onClick={sendCode}
               disabled={!EMAIL_LOOKS_VALID.test(values.email) || sendingCode}
               className="shrink-0 rounded-lg bg-slate-800 px-4 text-sm font-semibold text-white transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {sendingCode ? "Sending..." : otpStep === "sent" ? "Resend" : "Send Code"}
+              {sendingCode ? "Sending..." : "Send Code"}
             </button>
           )}
         </div>
