@@ -60,10 +60,20 @@ replace with real technicians and coordinates.
 
 ### Creating admin/technician logins
 
-Admin and technician accounts are Supabase Auth users with a matching row
-in `profiles`. Until the admin dashboard grows a user-management screen,
-create them via the Supabase dashboard (Authentication → Add user), then
-insert a row into `profiles` with the matching `id` and the desired `role`.
+Staff sign in with a one-time 6-digit code emailed to them — there's no
+password to set. Admin and technician accounts are Supabase Auth users with
+a matching row in `profiles`. Until the admin dashboard grows a
+user-management screen, create them via the Supabase dashboard
+(Authentication → Add user — an email is all that's required), then insert
+a row into `profiles` with the matching `id` and the desired `role`.
+
+For the emailed code to actually contain a 6-digit token (rather than only
+a magic link), open Authentication → Email Templates → Magic Link in the
+Supabase dashboard and make sure the template references `{{ .Token }}`
+(Supabase's default template includes this, but double-check if you've
+customized it). Supabase's built-in email sending is rate-limited and fine
+for testing; for real usage, configure custom SMTP under Authentication →
+Settings → SMTP Settings so codes arrive reliably.
 
 ## Project status
 
