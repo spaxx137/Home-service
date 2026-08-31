@@ -69,7 +69,7 @@ create table customers (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   phone text not null,
-  email text,
+  email text not null,
   address text not null,
   address_lat double precision,
   address_lng double precision,

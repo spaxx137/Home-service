@@ -32,7 +32,7 @@ export type Customer = {
   id: string;
   name: string;
   phone: string;
-  email: string | null;
+  email: string;
   address: string;
   address_lat: number | null;
   address_lng: number | null;

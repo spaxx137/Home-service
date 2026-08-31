@@ -26,7 +26,8 @@ export const bookingFormSchema = z.object({
     .string()
     .trim()
     .regex(PH_MOBILE_REGEX, "Enter a valid PH mobile number, e.g. 0917 123 4567"),
-  email: z.union([z.literal(""), z.string().trim().email("Enter a valid email")]).optional(),
+  email: z.string().trim().email("Enter a valid email"),
+  emailProof: z.string().min(1, "Please verify your email before submitting"),
   address: z.string().trim().min(10, "Enter your full service address").max(500),
   deviceInfo: z.string().trim().min(2, "Enter your device brand/model").max(120),
   issueType: z.enum(issueTypeValues, "Select an issue"),

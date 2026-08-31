@@ -33,7 +33,7 @@ export default async function AdminCustomerDetailPage({
           <h2 className="font-semibold text-slate-900">Customer Info</h2>
           <dl className="mt-3 space-y-2 text-sm">
             <Row label="Phone" value={customer.phone} />
-            <Row label="Email" value={customer.email ?? "—"} />
+            <Row label="Email" value={customer.email} />
             <Row label="Address" value={customer.address} />
             <Row label="Total Bookings" value={String(bookings.length)} />
             <Row label="Total Spend" value={formatPhp(totalSpend)} />

@@ -44,6 +44,18 @@ See `.env.example` for the full list. You'll need:
   webhook endpoint in the PayMongo dashboard, subscribed to
   `checkout_session.payment.paid`, and put its signing secret in
   `PAYMONGO_WEBHOOK_SECRET`.
+- **Resend + `EMAIL_OTP_SECRET`** — required for the booking form's email
+  step. Email is a required field there; the customer must verify it with a
+  6-digit code (sent via [Resend](https://resend.com/api-keys)) before they
+  can submit. Unlike the other integrations, this one doesn't degrade
+  gracefully when unconfigured — without a `RESEND_API_KEY` the "Send Code"
+  button just fails, since there's no other way to deliver the code. The
+  sandbox `onboarding@resend.dev` sender works for testing with no domain
+  setup; verify your own domain in Resend before real use.
+  `EMAIL_OTP_SECRET` is a random string (e.g. `openssl rand -hex 32`) used
+  to sign the verification tokens — the code itself is never stored
+  server-side, only a signed, expiring token round-tripped through the
+  browser.
 
 ### Database schema
 
@@ -109,3 +121,12 @@ depend on accounts this environment doesn't have:
   charged in full at booking" since it was never confirmed — see
   `src/lib/constants.ts` (`ISSUE_TYPE_ESTIMATES`) if you'd rather switch to
   a deposit model.
+
+The booking form's email OTP step (`src/app/api/email-otp/`) has one known
+gap worth knowing about before real traffic: the per-email resend cooldown
+is an in-memory `Map`, so it only holds within a single server instance and
+resets on redeploy/restart — fine for the current scale, but replace it
+with a real rate limiter (e.g. Redis-backed, or an edge/WAF rule) before
+this is exposed to the public internet at any volume, since as written
+anyone can hit `/api/email-otp/send` repeatedly to spam arbitrary inboxes
+through your Resend account.

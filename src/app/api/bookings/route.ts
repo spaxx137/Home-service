@@ -2,6 +2,7 @@ import { NextResponse, after } from "next/server";
 import { z } from "zod";
 
 import { ISSUE_TYPE_ESTIMATES, ISSUE_TYPE_LABELS, generateReferenceNumber } from "@/lib/constants";
+import { verifyProof } from "@/lib/email-otp";
 import { createCheckoutSession } from "@/lib/paymongo";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
@@ -39,6 +40,7 @@ export async function POST(request: Request) {
     fullName: readField(formData, "fullName"),
     mobileNumber: readField(formData, "mobileNumber"),
     email: readField(formData, "email"),
+    emailProof: readField(formData, "emailProof"),
     address: readField(formData, "address"),
     deviceInfo: readField(formData, "deviceInfo"),
     issueType: readField(formData, "issueType"),
@@ -56,6 +58,20 @@ export async function POST(request: Request) {
   }
 
   const values = parsed.data;
+
+  // Never trust the client's "email is verified" state alone — re-check the
+  // proof token server-side. It's only ever issued by /api/email-otp/verify
+  // after a real code match, so this can't be bypassed by skipping the UI.
+  if (!verifyProof(values.emailProof, values.email.trim().toLowerCase())) {
+    return NextResponse.json(
+      {
+        error: "email_not_verified",
+        message: "Please verify your email before submitting.",
+      },
+      { status: 400 },
+    );
+  }
+
   const photo = formData.get("photo");
 
   if (photo instanceof File && photo.size > 0) {
@@ -93,7 +109,7 @@ export async function POST(request: Request) {
       .from("customers")
       .update({
         name: values.fullName,
-        email: values.email || null,
+        email: values.email,
         address: values.address,
       })
       .eq("id", customerId);
@@ -107,7 +123,7 @@ export async function POST(request: Request) {
       .insert({
         name: values.fullName,
         phone: mobileNumber,
-        email: values.email || null,
+        email: values.email,
         address: values.address,
       })
       .select("id")

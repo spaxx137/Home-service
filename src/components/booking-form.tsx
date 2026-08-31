@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 
 import {
@@ -40,6 +40,10 @@ const initialState = {
 };
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
+const EMAIL_LOOKS_VALID = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const RESEND_COOLDOWN_SECONDS = 30;
+
+type OtpStep = "idle" | "sent" | "verified";
 
 export function BookingForm() {
   const [values, setValues] = useState(initialState);
@@ -49,20 +53,98 @@ export function BookingForm() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<ConfirmationDetails | null>(null);
 
+  const [otpStep, setOtpStep] = useState<OtpStep>("idle");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpToken, setOtpToken] = useState<string | null>(null);
+  const [emailProof, setEmailProof] = useState<string | null>(null);
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [sendingCode, setSendingCode] = useState(false);
+  const [verifyingCode, setVerifyingCode] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
   const estimate = useMemo(
     () => (values.issueType ? ISSUE_TYPE_ESTIMATES[values.issueType] : null),
     [values.issueType],
   );
 
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
+
   function update<K extends keyof typeof initialState>(key: K, value: (typeof initialState)[K]) {
     setValues((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function handleEmailChange(value: string) {
+    update("email", value);
+    if (otpStep !== "idle") {
+      setOtpStep("idle");
+      setOtpCode("");
+      setOtpToken(null);
+      setEmailProof(null);
+      setOtpError(null);
+    }
+  }
+
+  async function sendCode() {
+    setOtpError(null);
+    setSendingCode(true);
+    try {
+      const response = await fetch("/api/email-otp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: values.email }),
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        setOtpError(payload.message ?? "Couldn't send a code. Please try again.");
+        return;
+      }
+
+      setOtpToken(payload.token);
+      setOtpStep("sent");
+      setResendCooldown(RESEND_COOLDOWN_SECONDS);
+    } catch {
+      setOtpError("Couldn't reach the server. Check your connection and try again.");
+    } finally {
+      setSendingCode(false);
+    }
+  }
+
+  async function verifyCode() {
+    if (!otpToken) return;
+    setOtpError(null);
+    setVerifyingCode(true);
+    try {
+      const response = await fetch("/api/email-otp/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: values.email, code: otpCode, token: otpToken }),
+      });
+      const payload = await response.json();
+
+      if (!response.ok) {
+        setOtpError(payload.message ?? "That code is incorrect or has expired.");
+        return;
+      }
+
+      setEmailProof(payload.proof);
+      setOtpStep("verified");
+    } catch {
+      setOtpError("Couldn't reach the server. Check your connection and try again.");
+    } finally {
+      setVerifyingCode(false);
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitError(null);
 
-    const parsed = bookingFormSchema.safeParse(values);
+    const parsed = bookingFormSchema.safeParse({ ...values, emailProof: emailProof ?? "" });
     if (!parsed.success) {
       const fieldErrors: FieldErrors = {};
       for (const issue of parsed.error.issues) {
@@ -124,26 +206,78 @@ export function BookingForm() {
         />
       </Field>
 
-      <div className="grid gap-6 sm:grid-cols-2">
-        <Field label="Mobile Number" error={errors.mobileNumber} required>
-          <input
-            type="tel"
-            value={values.mobileNumber}
-            onChange={(e) => update("mobileNumber", e.target.value)}
-            className={inputClass}
-            placeholder="0917 123 4567"
-          />
-        </Field>
-        <Field label="Email" error={errors.email}>
+      <Field label="Mobile Number" error={errors.mobileNumber} required>
+        <input
+          type="tel"
+          value={values.mobileNumber}
+          onChange={(e) => update("mobileNumber", e.target.value)}
+          className={inputClass}
+          placeholder="0917 123 4567"
+        />
+      </Field>
+
+      <Field label="Email" error={errors.email || errors.emailProof} required>
+        <div className="flex gap-2">
           <input
             type="email"
             value={values.email}
-            onChange={(e) => update("email", e.target.value)}
+            onChange={(e) => handleEmailChange(e.target.value)}
             className={inputClass}
             placeholder="you@example.com"
           />
-        </Field>
-      </div>
+          {otpStep !== "verified" && (
+            <button
+              type="button"
+              onClick={sendCode}
+              disabled={!EMAIL_LOOKS_VALID.test(values.email) || sendingCode}
+              className="shrink-0 rounded-lg bg-slate-800 px-4 text-sm font-semibold text-white transition hover:bg-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {sendingCode ? "Sending..." : otpStep === "sent" ? "Resend" : "Send Code"}
+            </button>
+          )}
+        </div>
+
+        {otpStep === "verified" && (
+          <p className="mt-2 flex items-center gap-1 text-sm font-medium text-green-700">
+            <span aria-hidden>✓</span> Email verified
+          </p>
+        )}
+
+        {otpStep === "sent" && (
+          <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+            <p className="text-sm text-slate-600">Enter the 6-digit code we sent to {values.email}.</p>
+            <div className="mt-2 flex gap-2">
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                className={`${inputClass} text-center tracking-[0.4em]`}
+                placeholder="000000"
+              />
+              <button
+                type="button"
+                onClick={verifyCode}
+                disabled={otpCode.length !== 6 || verifyingCode}
+                className="shrink-0 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {verifyingCode ? "Verifying..." : "Verify"}
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={sendCode}
+              disabled={resendCooldown > 0 || sendingCode}
+              className="mt-2 text-xs font-medium text-blue-600 hover:text-blue-700 disabled:cursor-not-allowed disabled:text-slate-400"
+            >
+              {resendCooldown > 0 ? `Resend code (${resendCooldown}s)` : "Resend code"}
+            </button>
+          </div>
+        )}
+
+        {otpError && <p className="mt-2 text-sm text-red-600">{otpError}</p>}
+      </Field>
 
       <Field label="Service Address" error={errors.address} required>
         <textarea
@@ -252,10 +386,14 @@ export function BookingForm() {
 
       <button
         type="submit"
-        disabled={submitting}
+        disabled={submitting || otpStep !== "verified"}
         className="w-full rounded-lg bg-blue-600 px-6 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {submitting ? "Submitting..." : "Submit Booking"}
+        {submitting
+          ? "Submitting..."
+          : otpStep !== "verified"
+            ? "Verify your email to continue"
+            : "Submit Booking"}
       </button>
     </form>
   );
